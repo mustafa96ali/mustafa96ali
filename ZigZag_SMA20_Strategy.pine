@@ -1,0 +1,97 @@
+//@version=5
+indicator("ZigZag + SMA20 Strategy Visual", overlay=true, max_lines_count=500)
+
+// === Inputs
+zigzagPercent = input.float(5.0, "ZigZag Deviation %")
+atrLen        = input.int(14, "ATR Length")
+riskATR       = input.float(1.0, "ATR Multiplier")
+smaLen        = input.int(20, "SMA Length")
+lineExtend    = input.int(200, "Line Extend Bars")
+
+// === ATR و SMA
+atr = ta.atr(atrLen)
+sma20 = ta.sma(close, smaLen)
+plot(sma20, color=color.orange, linewidth=2, title="SMA20")
+
+// === ZigZag Variables
+var float zzHigh = na
+var float zzLow = na
+var string trend = ""
+var int lastPivotBar = na
+
+// === ZigZag Calculation
+if na(zzHigh) or high > zzHigh * (1 + zigzagPercent/100)
+    zzHigh := high
+    lastPivotBar := bar_index
+    trend := "down"
+else if na(zzLow) or low < zzLow * (1 - zigzagPercent/100)
+    zzLow := low
+    lastPivotBar := bar_index
+    trend := "up"
+
+// === Draw ZigZag Lines
+var line lnZZ = na
+if trend == "up" and not na(zzLow)
+    if lnZZ != na
+        line.delete(lnZZ)
+    lnZZ := line.new(bar_index-1, zzLow[1], bar_index, zzLow, color=color.green, width=2)
+else if trend == "down" and not na(zzHigh)
+    if lnZZ != na
+        line.delete(lnZZ)
+    lnZZ := line.new(bar_index-1, zzHigh[1], bar_index, zzHigh, color=color.red, width=2)
+
+// === Signals based on SMA + ZigZag
+bullSignal = ta.crossover(close, sma20) and trend == "up"
+bearSignal = ta.crossunder(close, sma20) and trend == "down"
+
+// === Plot Signals
+if bullSignal
+    label.new(bar_index, high, "Buy", style=label.style_label_up, color=color.green)
+if bearSignal
+    label.new(bar_index, low, "Sell", style=label.style_label_down, color=color.red)
+
+// === Trade Levels
+var float entry = na
+var float tp1 = na
+var float tp2 = na
+var float tp3 = na
+var float sl = na
+
+if bullSignal
+    entry := close
+    sl := entry - atr * riskATR
+    tp1 := entry + atr * riskATR
+    tp2 := entry + atr * riskATR * 2
+    tp3 := entry + atr * riskATR * 3
+
+if bearSignal
+    entry := close
+    sl := entry + atr * riskATR
+    tp1 := entry - atr * riskATR
+    tp2 := entry - atr * riskATR * 2
+    tp3 := entry - atr * riskATR * 3
+
+// === Draw Levels with lines extended
+var line lnEntry = na
+var line lnTP1 = na
+var line lnTP2 = na
+var line lnTP3 = na
+var line lnSL = na
+
+if bullSignal or bearSignal
+    if lnEntry != na
+        line.delete(lnEntry)
+    if lnTP1 != na
+        line.delete(lnTP1)
+    if lnTP2 != na
+        line.delete(lnTP2)
+    if lnTP3 != na
+        line.delete(lnTP3)
+    if lnSL != na
+        line.delete(lnSL)
+
+    lnEntry := line.new(bar_index-lineExtend, entry, bar_index+lineExtend, entry, color=color.blue, width=2)
+    lnTP1 := line.new(bar_index-lineExtend, tp1, bar_index+lineExtend, tp1, color=color.green, width=1)
+    lnTP2 := line.new(bar_index-lineExtend, tp2, bar_index+lineExtend, tp2, color=color.lime, width=1)
+    lnTP3 := line.new(bar_index-lineExtend, tp3, bar_index+lineExtend, tp3, color=color.teal, width=1)
+    lnSL := line.new(bar_index-lineExtend, sl, bar_index+lineExtend, sl, color=color.red, width=1)
